@@ -1,0 +1,42 @@
+import {THREE,S,T,fbm,groundH,upd} from './core.js';
+export const MAT={};
+function rock(r,seed,mat){const g=new THREE.IcosahedronGeometry(r,4),p=g.attributes.position,v=new THREE.Vector3();for(let i=0;i<p.count;i++){v.fromBufferAttribute(p,i);const n=fbm(v.x/r*1.3+seed,v.y/r*1.3,v.z/r*1.3,5);v.multiplyScalar(1+n*0.45);v.y*=0.75;p.setXYZ(i,v.x,v.y,v.z);}g.computeVertexNormals();const m=new THREE.Mesh(g,mat);m.castShadow=m.receiveShadow=true;return m;}
+export {rock};
+export function tube(pts,r,mat,seg=40,rs=10,taper){const c=new THREE.CatmullRomCurve3(pts.map(p=>new THREE.Vector3(...p)));const g=new THREE.TubeGeometry(c,seg,r,rs,false);if(taper){const p=g.attributes.position,n=seg+1;for(let i=0;i<=seg;i++){const u=i/seg,s=taper(u),cp=c.getPointAt(u);for(let j=0;j<=rs;j++){const k=i*(rs+1)+j,v=new THREE.Vector3().fromBufferAttribute(p,k).sub(cp).multiplyScalar(s).add(cp);p.setXYZ(k,v.x,v.y,v.z);}}g.computeVertexNormals();}const m=new THREE.Mesh(g,mat);m.castShadow=m.receiveShadow=true;return m;}
+const place=(m,x,z,y=0)=>{m.position.set(x,groundH(x)+y,z);S.add(m);return m;};
+export function init(){
+ MAT.rock=new THREE.MeshStandardMaterial({...T.rock,roughness:1});MAT.bone=new THREE.MeshStandardMaterial({...T.bone,roughness:0.75});MAT.stone=new THREE.MeshStandardMaterial({...T.stone,roughness:1});
+ MAT.metal=new THREE.MeshStandardMaterial({...T.metal,metalness:0.6,roughness:0.6});MAT.rust=new THREE.MeshStandardMaterial({color:0x5a3a28,roughness:0.9,metalness:0.4,normalMap:T.rock.normalMap});MAT.wood=new THREE.MeshStandardMaterial({color:0x5a4030,roughness:0.95,normalMap:T.chitin.normalMap});
+ // scattered rocks & bones
+ for(let i=0;i<140;i++){const x=Math.random()*240-10,z=-2-Math.random()*16;place(rock(0.3+Math.random()*1.6,i,MAT.rock),x,z,-0.2);}
+ for(let i=0;i<40;i++){const x=Math.random()*240-10,z=Math.random()*3-2.5;place(rock(0.15+Math.random()*0.35,i+300,MAT.rock),x,z,-0.05);}
+ for(let i=0;i<30;i++){const x=Math.random()*230,z=-1-Math.random()*6;const b=tube([[0,0,0],[0.5,0.1,0.1],[1.1,0.05,0]],0.06,MAT.bone,8,6);b.rotation.y=Math.random()*6;place(b,x,z,0.03);const sk=new THREE.Mesh(new THREE.SphereGeometry(0.16,16,12),MAT.bone);sk.scale.set(1,0.85,1.15);sk.castShadow=true;if(i%2)place(sk,x+0.6,z+0.3,0.1);}
+ // ZONE1 fossil ribcage
+ {const g=new THREE.Group(),sp=[];for(let i=0;i<=12;i++){const u=i/12;sp.push([u*34-17,6+Math.sin(u*Math.PI)*3-u*4,0]);}g.add(tube(sp,0.55,MAT.bone,60,12,u=>1-u*0.5));
+  for(let i=0;i<11;i++){const x=-14+i*2.8,y=6+Math.sin((i/11)*Math.PI)*3-(i/11)*4,h=y+1-i*0.15;for(const s of[-1,1])g.add(tube([[x,y,0],[x+0.8,y+1,s*3],[x+1.2,y-2,s*5.5],[x+1.6,y-h*0.7,s*5.2],[x+2,-1.5,s*4]],0.32,MAT.bone,30,8,u=>1-u*0.6));}
+  const sk=rock(3.2,77,MAT.bone);sk.scale.set(1.6,0.9,1);sk.position.set(-19,2.2,0);g.add(sk);for(const s of[-1,1]){const e=new THREE.Mesh(new THREE.SphereGeometry(0.8,16,12),new THREE.MeshStandardMaterial({color:0x080404,roughness:1}));e.position.set(-21.6,3,s*1.6);g.add(e);const horn=tube([[-18,4,s*1.5],[-16,7,s*3],[-12,8,s*3.5]],0.5,MAT.bone,20,8,u=>1-u*0.9);g.add(horn);}
+  g.position.set(52,groundH(52)-1.5,-13);g.rotation.y=0.25;S.add(g);
+  const g2=g.clone();g2.scale.setScalar(0.6);g2.position.set(20,groundH(20)-1.5,-26);g2.rotation.y=-0.5;S.add(g2);}
+ // ZONE2 temple
+ {const fl=(h,r,broken)=>{const g=new THREE.CylinderGeometry(r*0.92,r,h,32,Math.max(2,h*2|0));const p=g.attributes.position,v=new THREE.Vector3();for(let i=0;i<p.count;i++){v.fromBufferAttribute(p,i);const a=Math.atan2(v.z,v.x),rr=Math.hypot(v.x,v.z);if(rr>0.01){const f=1-0.06*Math.pow(Math.abs(Math.sin(a*10)),0.6)+fbm(v.x*2,v.y*2,v.z*2,3)*0.06;v.x*=f;v.z*=f;}if(broken&&v.y>h/2-0.6)v.y-=Math.abs(fbm(v.x*3,v.z*3,9,3))*2.4;p.setXYZ(i,v.x,v.y,v.z);}g.computeVertexNormals();const m=new THREE.Mesh(g,MAT.stone);m.castShadow=m.receiveShadow=true;return m;};
+  for(let i=0;i<9;i++){const x=70+i*4.2,h=i%3===2?4+Math.random()*2:9,c=fl(h,0.8,h<9);c.position.set(x,groundH(x)+h/2-1.2,-10);c.rotation.z=(Math.random()-0.5)*0.08;S.add(c);const cap=new THREE.Mesh(new THREE.BoxGeometry(2.1,0.6,2.1),MAT.stone);cap.castShadow=true;if(h>=9){cap.position.set(x,groundH(x)+h-1.1,-10);S.add(cap);}const base=cap.clone();base.position.set(x,groundH(x)-1,-10);S.add(base);}
+  const ar=new THREE.Mesh(new THREE.BoxGeometry(14,1.3,2.2),MAT.stone);ar.castShadow=true;ar.position.set(75,groundH(74)+8.4,-10);ar.rotation.z=0.03;S.add(ar);
+  const fallen=fl(8,0.8,false);fallen.rotation.z=Math.PI/2;fallen.rotation.y=0.4;place(fallen,90,-5.5,0.3);
+  // toppled statue head
+  const hd=new THREE.Group(),face=rock(3,5,MAT.stone);face.scale.set(1,1.25,0.95);hd.add(face);const nose=new THREE.Mesh(new THREE.ConeGeometry(0.7,2.2,4),MAT.stone);nose.position.set(0,0.1,2.9);nose.rotation.x=Math.PI/2;hd.add(nose);
+  for(const s of[-1,1]){const eye=new THREE.Mesh(new THREE.SphereGeometry(0.55,16,12),MAT.stone);eye.scale.set(1.4,0.6,0.5);eye.position.set(s*1.2,1,2.5);hd.add(eye);const sock=new THREE.Mesh(new THREE.TorusGeometry(0.75,0.2,8,20),MAT.stone);sock.position.set(s*1.2,1,2.55);hd.add(sock);}
+  const lip=new THREE.Mesh(new THREE.TorusGeometry(0.9,0.25,8,24,Math.PI),MAT.stone);lip.position.set(0,-1.3,2.4);lip.rotation.z=Math.PI;hd.add(lip);const crown=new THREE.Mesh(new THREE.CylinderGeometry(2.4,2.9,2.2,10,1,true),MAT.stone);crown.position.y=3.6;hd.add(crown);
+  hd.rotation.set(-0.2,0.6,1.2);place(hd,98,-14,1.2);hd.traverse(o=>{if(o.isMesh)o.castShadow=o.receiveShadow=true;});}
+ // ZONE3 outpost
+ {const tw=new THREE.Group();for(const a of[-1,1])for(const b of[-1,1]){const l=new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.18,9,8),MAT.wood);l.position.set(a*1.4,4.5,b*1.4);l.rotation.z=a*-0.06;l.rotation.x=b*0.06;tw.add(l);}
+  const pl=new THREE.Mesh(new THREE.BoxGeometry(4,0.3,4),MAT.wood);pl.position.y=9;tw.add(pl);const rf=new THREE.Mesh(new THREE.ConeGeometry(3.4,1.6,4),MAT.rust);rf.position.y=11.6;rf.rotation.y=Math.PI/4;tw.add(rf);for(let i=0;i<4;i++){const rl=new THREE.Mesh(new THREE.BoxGeometry(4,0.8,0.1),MAT.wood);rl.position.set(0,9.6,0);rl.rotation.y=i*Math.PI/2;rl.translateZ(2);tw.add(rl);}
+  tw.traverse(o=>{if(o.isMesh)o.castShadow=true;});place(tw,128,-9,-0.5);
+  const wr=new THREE.Group(),hull=new THREE.Mesh(new THREE.BoxGeometry(7,1.6,3.6),MAT.rust);hull.position.y=1.2;wr.add(hull);const tr=new THREE.Mesh(new THREE.CylinderGeometry(1.4,1.6,1,12),MAT.rust);tr.position.set(0.5,2.4,0);wr.add(tr);const br=new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.2,5,10),MAT.rust);br.rotation.z=1.25;br.position.set(-2.4,3,0);wr.add(br);for(const s of[-1,1]){const t=new THREE.Mesh(new THREE.BoxGeometry(7.4,1.2,0.8),new THREE.MeshStandardMaterial({color:0x1e1a18,roughness:0.9}));t.position.set(0,0.6,s*1.9);wr.add(t);}
+  wr.rotation.set(0.08,0.5,-0.12);wr.traverse(o=>{if(o.isMesh)o.castShadow=o.receiveShadow=true;});place(wr,150,-8,-0.6);
+  const bag=new THREE.MeshStandardMaterial({color:0x8a7650,roughness:1,normalMap:T.bandage.normalMap});for(let r=0;r<3;r++)for(let i=0;i<6-r;i++){const s=new THREE.Mesh(new THREE.CapsuleGeometry(0.3,0.6,4,10),bag);s.rotation.z=Math.PI/2;s.scale.set(1,1,0.7);s.castShadow=true;place(s,134+i*0.95+r*0.45,-3.5,0.25+r*0.42);}
+  const wire=new THREE.MeshStandardMaterial({color:0x5a5450,metalness:0.8,roughness:0.5});for(let i=0;i<4;i++){const c=new THREE.Mesh(new THREE.TorusGeometry(0.6,0.02,4,60),wire);for(let k=0;k<8;k++){const cc=c.clone();cc.rotation.y=Math.PI/2;cc.position.set(k*0.4,0,0);const gg=new THREE.Group();gg.add(cc);place(gg,118+i*10+k*0.4,-1.8,0.5);}}
+  const flag=new THREE.Mesh(new THREE.PlaneGeometry(3,1.8,20,10),new THREE.MeshStandardMaterial({color:0x7a1410,roughness:0.9,side:THREE.DoubleSide}));const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,8,6),MAT.metal);place(pole,145,-6,3);place(flag,146.5,-6,6);const fp=flag.geometry.attributes.position,f0=fp.array.slice();upd.push((dt,t)=>{for(let i=0;i<fp.count;i++){const x=f0[i*3]+1.5;fp.setZ(i,Math.sin(x*2.2-t*6)*0.25*x/3);fp.setY(i,f0[i*3+1]-x*x*0.03);}fp.needsUpdate=true;flag.geometry.computeVertexNormals();});}
+ // Maw pit
+ {for(let i=0;i<30;i++){const a=i/30*Math.PI*2,x=200+Math.cos(a)*24,z=-10+Math.sin(a)*12;if(z>2)continue;const r=rock(1.5+Math.random()*2.5,i+900,MAT.rock);place(r,x,z,-0.5);}
+  for(let i=0;i<14;i++){const sp=new THREE.Mesh(new THREE.ConeGeometry(0.25,3+Math.random()*3,8),MAT.bone);sp.rotation.z=(Math.random()-0.5)*0.8;sp.castShadow=true;place(sp,180+i*3.2,-4-Math.random()*6,1.2);}}
+}
