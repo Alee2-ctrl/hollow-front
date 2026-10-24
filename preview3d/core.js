@@ -6,12 +6,13 @@ import {UnrealBloomPass} from 'three/addons/postprocessing/UnrealBloomPass.js';
 import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
 import {ShaderPass} from 'three/addons/postprocessing/ShaderPass.js';
 import * as BGU from 'three/addons/utils/BufferGeometryUtils.js';
+import {RGBELoader} from 'three/addons/loaders/RGBELoader.js';
 export {THREE};
 const R=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
 R.setPixelRatio(Math.min(devicePixelRatio,1.5));R.setSize(innerWidth,innerHeight);R.shadowMap.enabled=true;R.shadowMap.type=THREE.PCFSoftShadowMap;
-R.toneMapping=THREE.ACESFilmicToneMapping;R.toneMappingExposure=1.05;R.outputColorSpace=THREE.SRGBColorSpace;document.body.appendChild(R.domElement);
+R.toneMapping=THREE.ACESFilmicToneMapping;R.toneMappingExposure=0.9;R.outputColorSpace=THREE.SRGBColorSpace;document.body.appendChild(R.domElement);
 const S=new THREE.Scene();const CAM=new THREE.PerspectiveCamera(32,innerWidth/innerHeight,0.1,900);
-S.fog=new THREE.FogExp2(0xc07a4a,0.0105);
+S.fog=new THREE.FogExp2(0xc8865a,0.006);
 // ---------- noise + textures ----------
 const P=new Uint8Array(512);{const p=[...Array(256).keys()];for(let i=255;i>0;i--){const j=(Math.sin(i*91.7)*43758.5453%1+1)%1*(i+1)|0;[p[i],p[j]]=[p[j],p[i]];}for(let i=0;i<512;i++)P[i]=p[i&255];}
 const fade=t=>t*t*t*(t*(t*6-15)+10),lerp=(a,b,t)=>a+(b-a)*t;
@@ -49,10 +50,14 @@ const hemi=new THREE.HemisphereLight(0xffc9a0,0x5a3020,0.75);S.add(hemi);
 const sun=new THREE.DirectionalLight(0xffb070,3.2);sun.position.set(-40,22,-30);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);const sc=sun.shadow.camera;sc.left=-40;sc.right=40;sc.top=30;sc.bottom=-20;sc.near=1;sc.far=150;sun.shadow.bias=-0.0004;sun.shadow.normalBias=0.03;S.add(sun);S.add(sun.target);
 const rim=new THREE.DirectionalLight(0x7a8cff,0.55);rim.position.set(30,15,40);S.add(rim);
 export {sky,skyMat,sun,hemi};
+{const pm=new THREE.PMREMGenerator(R);new RGBELoader().load('ph/sky.hdr',h=>{S.environment=pm.fromEquirectangular(h).texture;S.environmentIntensity=0.55;h.dispose();});}
 // ---------- terrain ----------
 export const groundH=x=>0.35*Math.sin(x*0.09)+0.25*Math.sin(x*0.031+1)+fbm(x*0.03,0.5,0,3)*0.8;
-const sandMat=new THREE.MeshStandardMaterial({...T.sand,color:0xffffff,roughness:1,normalScale:new THREE.Vector2(0.9,0.9)});
-{const g=new THREE.PlaneGeometry(520,140,520,90);g.rotateX(-Math.PI/2);const p=g.attributes.position;for(let i=0;i<p.count;i++){const x=p.getX(i),z=p.getZ(i);let h=groundH(x);const back=Math.max(0,-z-4);h+=back*back*0.012*(1+fbm(x*0.02,z*0.03,1,4)*1.4)+Math.max(0,-z-8)*0.25*Math.max(0,fbm(x*0.012,z*0.012,3,4)+0.2)*6;h+=Math.max(0,z-6)*0.05;h+=fbm(x*0.4,z*0.4,2,2)*0.06;p.setY(i,h);}g.computeVertexNormals();
+const TL=new THREE.TextureLoader();
+function phTex(n,rep){const f=(k,srgb)=>{const t=TL.load('ph/'+n+'_'+k+'.jpg');t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(rep[0],rep[1]);t.anisotropy=8;if(srgb)t.colorSpace=THREE.SRGBColorSpace;return t;};return{map:f('diff',1),normalMap:f('nor'),roughnessMap:f('rough'),aoMap:f('ao')};}
+export {phTex};
+const sandMat=new THREE.MeshStandardMaterial({...phTex('aerial_sand',[90,24]),color:0xffe2c4,roughness:1,normalScale:new THREE.Vector2(1.4,1.4)});
+{const g=new THREE.PlaneGeometry(520,140,520,90);g.rotateX(-Math.PI/2);const p=g.attributes.position;for(let i=0;i<p.count;i++){const x=p.getX(i),z=p.getZ(i);let h=groundH(x);const back=Math.max(0,-z-4);h+=back*back*0.004*(1+fbm(x*0.02,z*0.03,1,4)*1.4)+Math.max(0,-z-8)*0.1*Math.max(0,fbm(x*0.012,z*0.012,3,4)+0.2)*4;h+=Math.max(0,z-6)*0.05;h+=fbm(x*0.4,z*0.4,2,2)*0.06;p.setY(i,h);}g.computeVertexNormals();
  const m=new THREE.Mesh(g,sandMat);m.position.x=180;m.receiveShadow=true;S.add(m);}
 // far mesas
 {const mm=new THREE.MeshStandardMaterial({...T.rock,color:0xc08060,roughness:1});for(let i=0;i<26;i++){const g=new THREE.CylinderGeometry(6+Math.random()*10,14+Math.random()*12,12+Math.random()*26,24,10);const p=g.attributes.position;for(let k=0;k<p.count;k++){const v=new THREE.Vector3().fromBufferAttribute(p,k),n=fbm(v.x*0.15,v.y*0.15,v.z*0.15+i,4);v.multiplyScalar(1).add(new THREE.Vector3(v.x,0,v.z).normalize().multiplyScalar(n*4));v.y+=Math.abs(n)*(v.y>0?2:0);p.setXYZ(k,v.x,v.y,v.z);}g.computeVertexNormals();const m=new THREE.Mesh(g,mm);m.position.set(-40+i*22+Math.random()*10,0,-150-Math.random()*90);S.add(m);}}
@@ -64,7 +69,7 @@ const N=5000,pg=new THREE.BufferGeometry(),pp=new Float32Array(N*3);for(let i=0;
 const dust=new THREE.Points(pg,new THREE.PointsMaterial({map:SPR,size:0.12,color:0xffc890,transparent:true,opacity:0.55,depthWrite:false,blending:THREE.AdditiveBlending}));S.add(dust);
 const haze=[];{const hm=new THREE.SpriteMaterial({map:SPR,color:0xd89060,transparent:true,opacity:0.16,depthWrite:false});for(let i=0;i<120;i++){const s=new THREE.Sprite(hm);s.position.set(Math.random()*400-20,1+Math.random()*5,-6-Math.random()*40);s.scale.setScalar(10+Math.random()*16);S.add(s);haze.push(s);}}
 // ---------- post ----------
-const C=new EffectComposer(R);C.addPass(new RenderPass(S,CAM));const bloom=new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),0.55,0.6,0.82);C.addPass(bloom);
+const C=new EffectComposer(R);C.addPass(new RenderPass(S,CAM));const bloom=new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),0.35,0.5,0.96);C.addPass(bloom);
 const grade=new ShaderPass({uniforms:{tDiffuse:{value:null},t:{value:0}},vertexShader:`varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,fragmentShader:`uniform sampler2D tDiffuse;uniform float t;varying vec2 vUv;float h(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}void main(){vec4 c=texture2D(tDiffuse,vUv);vec2 q=vUv-.5;c.rgb*=1.-dot(q,q)*1.1;c.rgb+=(h(vUv*vec2(1920.,1080.)+t)-.5)*.035;c.rgb=mix(c.rgb,c.rgb*vec3(1.06,.98,.9),.5);gl_FragColor=c;}`});C.addPass(grade);C.addPass(new OutputPass());
 addEventListener('resize',()=>{CAM.aspect=innerWidth/innerHeight;CAM.updateProjectionMatrix();R.setSize(innerWidth,innerHeight);C.setSize(innerWidth,innerHeight);});
 // ---------- shared ----------
